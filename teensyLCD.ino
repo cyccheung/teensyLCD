@@ -1,39 +1,60 @@
-#define NUMROWS 4
-#define NUMCOLS 20
-
+#include <rotary.h>
 #include "Wire.h"
 #include <Adafruit_LiquidCrystal.h>
 
-Adafruit_LiquidCrystal lcd(0);
-char menu1[6] = "Item10";
-char menu2[6] = "Item2";
-char menu3[6] = "Items32";
-char menu4[6] = "Item";
-int menu1Ctr = 0;
-int menu1Sat[] = {0, 3};
-int menu2Ctr = 0;
-int menu2Sat[] = {1, 4};
-int menu3Ctr = 0;
-int menu3Sat[] = {2, 5};
-int menu4Ctr = 0;
-int menu4Sat[] = {3, 6};
-int encoderCount = 0;
+#define NUMROWS 4               // LCD height
+#define NUMCOLS 20              // LCD width
+#define NUMMENUITEMS 6          // Number of parameters
+#define MENUITEMMAXLENGTH 15    // Length of longest parameter name including null character
+
+Adafruit_LiquidCrystal lcd(0);  // Change number if I2C address changes
+
+char menuLabels[NUMMENUITEMS][MENUITEMMAXLENGTH];
+menuLabels[0] = "STEP SIZE:";
+menuLabels[1] = "NUM STEPS:";
+menuLabels[2] = "TOTAL TRAVEL:";
+menuLabels[3] = "EXP TIME/STEP:";
+menuLabels[4] = "SCAN DIR:";
+menuLabels[5] = "PIEZO TRAVEL:";
+
+enum STATES {
+  SCROLLING,  // Choosing which parameter to edit
+  ADJUSTING   // Editing a parameter's value
+};
+
+int currentState = SCROLLING;
+int currentSelection = 0;   // Stores which menu item currently pointing at
 
 void setup() {
   lcd.begin(NUMCOLS, NUMROWS);
   lcd.setBacklight(HIGH);
   lcd.home();
-  lcd.print(menu1);
-  lcd.setCursor(0, 1);
-  lcd.print(menu2);
-  lcd.setCursor(0, 2);
-  lcd.print(menu3);
-  lcd.setCursor(0, 3);
-  lcd.print(menu4);
+  for(int i = 0; i < 4; ++i) {
+    lcd.setCursor(0, i);
+    lcd.print(menuLabels[i]);
+  }
 }
 
 void loop() {
-  switch(encoderCount % 4) {
+  volatile unsigned char val = r.process();
+
+  // if the encoder has been turned, check the direction
+  if (val) {
+    if (val == r.clockwise()) {
+      Serial.println("Clockwise");                    
+    }
+    else if (val == r.counterClockwise()) {
+      Serial.println("Counter-Clockwise");
+    }
+  }
+
+  // Check to see if the button has been pressed.
+  // Passes in a debounce delay of 20 milliseconds
+  if (r.buttonPressedReleased(20)) {
+    Serial.println("Button pressed");
+  }
+
+  switch(state) {
   case 0:
     /* code */
     break;
