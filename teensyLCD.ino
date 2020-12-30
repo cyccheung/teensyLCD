@@ -102,20 +102,38 @@ void loop() {
   if(val) {
     switch(state) {
       case SCROLLING:
-        lcd.setCursor(0, currentSelection); // Move cursor to 0th column and chosen row
+        lcd.setCursor(0, currentSelection % 4); // Move cursor to 0th column and chosen row
         lcd.noAutoscroll();                 // Left justify
         lcd.print(" ");                     // Erase selector symbol
         delay(50);
 
         // Change which row selector symbol is on and saturate it between 0 and NUMMENUITEMS - 1
-        if(val == r.clockwise()) {
+        if(val == r.clockwise() && currentSelection == 3) {
           currentSelection >= NUMMENUITEMS - 1 ? currentSelection = NUMMENUITEMS - 1 : currentSelection++;
+          // Change to page 2
+          lcd.clear();
+          for(int i = 4; i < 6; ++i) {
+            lcd.setCursor(0, i - 4);
+            lcd.print(menuLabels[i]);
+          }
+        }
+        else if(val == r.clockwise()) {
+          currentSelection >= NUMMENUITEMS - 1 ? currentSelection = NUMMENUITEMS - 1 : currentSelection++;
+        }
+        else if(val == r.counterClockwise() && currentSelection == 4) {
+          currentSelection <= 0 ? currentSelection = 0 : currentSelection--;
+          // Change to page 1
+          lcd.clear();
+          for(int i = 0; i < 4; ++i) {
+            lcd.setCursor(0, i);
+            lcd.print(menuLabels[i]);
+          }
         }
         else if(val == r.counterClockwise()) {
           currentSelection <= 0 ? currentSelection = 0 : currentSelection--;
         }
 
-        lcd.setCursor(0, currentSelection); // Move cursor to 0th column and chosen row
+        lcd.setCursor(0, currentSelection % 4); // Move cursor to 0th column and chosen row
         lcd.noAutoscroll();                 // Left justify
         lcd.print(selector);                // Print out selector symbol
         delay(50);
@@ -139,6 +157,7 @@ void loop() {
             }
             lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection); // Move cursor to last column and chosen row
             values[currentSelection] < 0.5 ? lcd.print("-") : lcd.print("+"); // 0.0 = -, 1.0 = +
+            delay(50);
             break;
           // case PIEZOTRAVEL:
           //   break;
@@ -156,7 +175,9 @@ void loop() {
             }
             lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection); // Move cursor to correct column from the right and chosen row
             lcd.print(values[currentSelection]);          // Print out value
+            delay(50);
             lcd.print(parameterUnits[currentSelection]);  // Print out units
+            delay(50);
             break;
         }
         break;
