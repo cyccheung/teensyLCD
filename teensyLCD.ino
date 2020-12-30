@@ -129,9 +129,8 @@ void loop() {
             else {
               values[currentSelection] = 0.0;
             }
-            lcd.setCursor(NUMCOLS - 1, currentSelection); // Move cursor to last column and chosen row
-            lcd.autoscroll();                             // Right justify
-            lcd.print(values[currentSelection]);          // Print out value
+            lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection); // Move cursor to last column and chosen row
+            values[currentSelection] < 0.5 ? lcd.print("-") : lcd.print("+"); // 0.0 = -, 1.0 = +
             break;
           // case PIEZOTRAVEL:
           //   break;
@@ -147,6 +146,9 @@ void loop() {
                 values[currentSelection] = valuesMin[currentSelection] :    // Saturate at min
                 values[currentSelection] -= resolutions[currentSelection];  // Decrement by resolution
             }
+            lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection); // Move cursor to correct column from the right and chosen row
+            lcd.print(values[currentSelection]);          // Print out value
+            lcd.print(parameterUnits[currentSelection]);  // Print out units
             break;
         }
         break;
