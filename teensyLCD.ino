@@ -6,27 +6,30 @@
 #define NUMCOLS 20              // LCD width
 #define NUMMENUITEMS 6          // Number of parameters
 #define MENUITEMMAXLENGTH 16    // Length of longest parameter name including null character
+#define SETUPDEBUG 0            // Does not run loop if true
 
 Adafruit_LiquidCrystal lcd(0);  // Change number if I2C address changes
+Rotary r = Rotary(5, 3, 4);
 
-char menuLabels[NUMMENUITEMS][MENUITEMMAXLENGTH];
-menuLabels[0] = " STEP SIZE:";
-menuLabels[1] = " NUM STEPS:";
-menuLabels[2] = " TOTAL TRAVEL:";
-menuLabels[3] = " EXP TIME/STEP:";
-menuLabels[4] = " SCAN DIR:";
-menuLabels[5] = " PIEZO TRAVEL:";
+char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
+                                          " NUM STEPS:",
+                                          " TOTAL TRAVEL:",
+                                          " EXP TIME/STEP:",
+                                          " SCAN DIR:",
+                                          " PIEZO TRAVEL:"
+                                        };
 
 // Stores the number of characters the values of each parameter takes, including units
 int parameterValueLengths[] = {5, 3, 6, 5, 1, 5};
 // Stores the char arrays of units that each parameter takes
-char parameterUnits[NUMMENUITEMS][3];
-parameterUnits[0] = "um";
-parameterUnits[1] = "";
-parameterUnits[0] = "um";
-parameterUnits[0] = "ms";
-parameterUnits[0] = "";
-parameterUnits[0] = "um";
+// char parameterUnits[NUMMENUITEMS][3];
+char parameterUnits[][3] = {  "um",
+                              "",
+                              "um",
+                              "ms",
+                              "",
+                              "um"
+                            };
 // Stores the values of each parameter
 float values[] = {0.0, 0.0, 0.0, 0.0, 1.0, 0.0};
 // Stores minimum value each parameter can be
@@ -59,7 +62,7 @@ enum MENUITEMS {
   PIEZOTRAVEL
 };
 
-int currentState = SCROLLING;
+int state = SCROLLING;
 int currentSelection = STEPSIZE;     // Stores which menu item currently pointing at
 
 void setup() {
@@ -79,6 +82,9 @@ void setup() {
 }
 
 void loop() {
+  while(SETUPDEBUG) {
+    delay(10000);
+  }
   volatile unsigned char val = r.process();
 
   // Check to see if the button has been pressed
@@ -99,6 +105,7 @@ void loop() {
         lcd.setCursor(0, currentSelection); // Move cursor to 0th column and chosen row
         lcd.noAutoscroll();                 // Left justify
         lcd.print(" ");                     // Erase selector symbol
+        delay(50);
 
         // Change which row selector symbol is on and saturate it between 0 and NUMMENUITEMS - 1
         if(val == r.clockwise()) {
@@ -111,6 +118,7 @@ void loop() {
         lcd.setCursor(0, currentSelection); // Move cursor to 0th column and chosen row
         lcd.noAutoscroll();                 // Left justify
         lcd.print(selector);                // Print out selector symbol
+        delay(50);
         break;
       case ADJUSTING:
         switch(currentSelection) {
