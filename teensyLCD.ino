@@ -89,12 +89,17 @@ void loop() {
 
   // Check to see if the button has been pressed
   // Passes in a debounce delay of 20 milliseconds
-  if (r.buttonPressedReleased(20)) {
+  if (r.buttonPressedReleased(10)) {
     if(state == SCROLLING) {
       state = ADJUSTING;
+      // Move cursor to right most spot and blink it
+      lcd.setCursor(NUMCOLS - 1, currentSelection);
+      lcd.blink();
     }
     else if(state == ADJUSTING) {
       state = SCROLLING;
+      lcd.setCursor(0, currentSelection);
+      lcd.noBlink();
     }
   }
 
@@ -178,6 +183,7 @@ void loop() {
             delay(50);
             lcd.print(parameterUnits[currentSelection]);  // Print out units
             delay(50);
+            lcd.setCursor(NUMCOLS - 1, currentSelection); // Move cursor back to last column on row so blinking is in the right place
             break;
         }
         break;
