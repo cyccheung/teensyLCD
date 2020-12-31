@@ -122,10 +122,10 @@ void loop() {
       lcd.blink();
     }
     // Special case if user is changing exposure time
-    // Move the cursor to the right by one spot
+    // Move the cursor to the left by one spot
     else if(state == ADJUSTING && currentSelection == EXPTIME && expTimePosition < 3) {
       expTimePosition++;
-      lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection] + expTimePosition, currentSelection);
+      lcd.setCursor(NUMCOLS - parameterValueLengths[currentSelection] + expTimePosition, currentSelection);
     }
     // User is done adjusting value
     else if(state == ADJUSTING) {
@@ -178,9 +178,9 @@ void loop() {
           //   break;
           case EXPTIME:
             // Lets user adjust exposure time like a luggage lock
-            int difference = 1;
+            int difference = 1000;
             for(int i = 0; i < expTimePosition; ++i) {
-              difference *= 10;
+              difference /= 10;
             }
             if(val == r.clockwise()) {
               values[currentSelection] += difference;                       // Increment by difference
@@ -250,6 +250,19 @@ void updateValueOnScreen(int currentSelection) {
     // If STEPSIZE is 10.00, it needs one more cell
     lcd.setCursor(NUMCOLS - 2 - parameterValueLengths[currentSelection], currentSelection);
   }
+  // Print out leading zeros for EXPTIME
+  else if(currentSelection == EXPTIME) {
+    lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection);
+    if(values[currentSelection] < 1000) {
+      lcd.print("0");
+    }
+    if(values[currentSelection] < 100) {
+      lcd.print("0");
+    }
+    if(values[currentSelection] < 10) {
+      lcd.print("0");
+    }
+  }
   else {
     lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection);
   }
@@ -262,8 +275,10 @@ void updateValueOnScreen(int currentSelection) {
   delay(50);
   lcd.print(parameterUnits[currentSelection]);  // Print out units
   delay(50);
-  // Move cursor back to last column on row so blinking is in the right place
-  lcd.setCursor(NUMCOLS - 1, currentSelection); 
+  if(currentSelection != EXPTIME) {
+    // Move cursor back to last column on row so blinking is in the right place
+    lcd.setCursor(NUMCOLS - 1, currentSelection); 
+  }
 }
 
 // Function to print out menu labels
