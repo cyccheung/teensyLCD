@@ -1,5 +1,6 @@
 #include <rotary.h>
 #include "Wire.h"
+#include <EEPROM.h>
 #include <Adafruit_LiquidCrystal.h>
 
 #define NUMROWS 4               // LCD height
@@ -7,20 +8,28 @@
 #define NUMMENUITEMS 6          // Number of parameters
 #define MENUITEMMAXLENGTH 16    // Length of longest parameter name including null character
 #define SETUPDEBUG 0            // Does not run loop if true
+#define EEPROMENABLE 0          // Disable at all times unless testing EEPROM or overall system
+// EEPROM addresses
+#define EEPROMSTEPSIZEADDR 0
+#define EEPROMNUMSTEPSADDR 4
+#define EEPROMEXPTIMEADDR 8
+#define EEPROMSCANDIRADDR 12
+#define EEPROMPIEZOTRAVELADDR 16
 
 Adafruit_LiquidCrystal lcd(0);  // Change number if I2C address changes
-Rotary r = Rotary(5, 3, 4);
+Rotary r = Rotary(5, 3, 4);     // Encoder pin A, Encoder pin B, button pin
 
 char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
                                           " NUM STEPS:",
                                           " TOTAL TRAVEL:",
-                                          " EXP TIME/STEP:",
+                                          " EXP TIME:",
                                           " SCAN DIR:",
-                                          " PIEZO TRAVEL:"
+                                          " PIEZO TRAVEL:",
+                                          " SAVE SETTINGS"
                                         };
 
 // Stores the number of characters the values of each parameter takes, including units
-int parameterValueLengths[] = {5, 3, 6, 5, 1, 5};
+int parameterValueLengths[] = {5, 3, 6, 6, 1, 5};
 // Stores the char arrays of units that each parameter takes
 // char parameterUnits[NUMMENUITEMS][3];
 char parameterUnits[][3] = {  "um",
@@ -30,18 +39,19 @@ char parameterUnits[][3] = {  "um",
                               "",
                               "um"
                             };
-// Stores the values of each parameter
-float values[] = {0.0, 0.0, 0.0, 0.0, 1.0, 0.0};
 // Stores minimum value each parameter can be
-float valuesMin[] = {0.0, 0.0, 0.0, 0.0, 0.0, 100.0};
+float valuesMin[] = {0.0, 0.0, 0.0, 1.0, 0.0, 100.0};
 // Stores maximum value each parameter can be
-float valuesMax[] = {10.0, 0.0, 0.0, 0.0, 0.0, 500.0};
+float valuesMax[] = {10.0, 0.0, 0.0, 9999.0, 0.0, 500.0};
+// Stores the values of each parameter
+// Initializes them as minimum values
+float values[] = {valuesMin[0], valuesMin[1], valuesMin[2], valuesMin[3], valuesMin[4], valuesMin[5]};
 
 // Stores the amount that one encoder detent adjusts parameter by
 float resolutions[] = { 0.1,  // Step size 
                         1.0,  // Num steps 
                         1.0,  // Total travel
-                        1.0,  // Exposure time per step
+                        1.0,  // Exposure time
                         1.0,  // Scanning direction, do not use this value
                         50.0  // Piezo travel 
                         };
@@ -59,25 +69,28 @@ enum MENUITEMS {
   TOTALTRAVEL,
   EXPTIME,
   SCANDIR,
-  PIEZOTRAVEL
+  PIEZOTRAVEL,
+  SAVESETTINGS
 };
 
 int state = SCROLLING;
-int currentSelection = STEPSIZE;     // Stores which menu item currently pointing at
+int currentSelection = STEPSIZE;      // Stores which menu item currently pointing at
+int expTimePosition = 0;              // Stores offset from start of exposure time value cells
+int eepromAddr = 0;
 
 void setup() {
   lcd.begin(NUMCOLS, NUMROWS);
   lcd.setBacklight(HIGH);
   lcd.home();
-  // Print out parameter names
-  for(int i = 0; i < 4; ++i) {
-    lcd.setCursor(0, i);
-    lcd.print(menuLabels[i]);
-  }
 
-  // TODO: Load up saved values for each parameter
-  // TODO: Print out values for each parameter
+  // Load up saved values for each parameter
+  if(EEPROMENABLE) {
+    loadSettings();
+  }
+  // Print out values for each parameter
+  printPage(currentSelection);
   // TODO: Compute resolution, min, and max values for parameters
+  computeParameters();
   // TODO: Output values to peripherals
 }
 
@@ -96,7 +109,15 @@ void loop() {
       lcd.setCursor(NUMCOLS - 1, currentSelection);
       lcd.blink();
     }
+    // Special case if user is changing exposure time
+    // Move the cursor to the right by one spot
+    else if(state == ADJUSTING && currentSelection == EXPTIME && expTimePosition < 3) {
+      expTimePosition++;
+      lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection] + expTimePosition, currentSelection);
+    }
+    // User is done adjusting value
     else if(state == ADJUSTING) {
+      expTimePosition = 0;  // Redundant most of the time but makes the code simpler so...
       state = SCROLLING;
       lcd.setCursor(0, currentSelection);
       lcd.noBlink();
@@ -115,24 +136,16 @@ void loop() {
         // Change which row selector symbol is on and saturate it between 0 and NUMMENUITEMS - 1
         if(val == r.clockwise() && currentSelection == 3) {
           currentSelection >= NUMMENUITEMS - 1 ? currentSelection = NUMMENUITEMS - 1 : currentSelection++;
-          // Change to page 2
-          lcd.clear();
-          for(int i = 4; i < 6; ++i) {
-            lcd.setCursor(0, i - 4);
-            lcd.print(menuLabels[i]);
-          }
+          // Print page 2
+          printPage(currentSelection);
         }
         else if(val == r.clockwise()) {
           currentSelection >= NUMMENUITEMS - 1 ? currentSelection = NUMMENUITEMS - 1 : currentSelection++;
         }
         else if(val == r.counterClockwise() && currentSelection == 4) {
           currentSelection <= 0 ? currentSelection = 0 : currentSelection--;
-          // Change to page 1
-          lcd.clear();
-          for(int i = 0; i < 4; ++i) {
-            lcd.setCursor(0, i);
-            lcd.print(menuLabels[i]);
-          }
+          // Print page 1
+          printPage(currentSelection);
         }
         else if(val == r.counterClockwise()) {
           currentSelection <= 0 ? currentSelection = 0 : currentSelection--;
@@ -151,8 +164,24 @@ void loop() {
           //   break;
           // case TOTALTRAVEL:
           //   break;
-          // case EXPTIME:
-          //   break;
+          case EXPTIME:
+            // Lets user adjust exposure time like a luggage lock
+            int difference = 1;
+            for(int i = 0; i < expTimePosition; ++i) {
+              difference *= 10;
+            }
+            if(val == r.clockwise()) {
+              values[currentSelection] += difference;                       // Increment by difference
+              values[currentSelection] >= valuesMax[currentSelection] ? 
+                values[currentSelection] = valuesMax[currentSelection]      // Saturate at max
+            }
+            else if(val == r.counterClockwise()) {
+              values[currentSelection] -= difference;                       // Decrement by difference
+              values[currentSelection] <= valuesMin[currentSelection] ? 
+                values[currentSelection] = valuesMin[currentSelection] :    // Saturate at min
+            }
+            updateValueOnScreen(currentSelection);
+            break;
           case SCANDIR:
             if(values[currentSelection] < 0.5) {
               values[currentSelection] = 1.0;
@@ -166,6 +195,11 @@ void loop() {
             break;
           // case PIEZOTRAVEL:
           //   break;
+          case SAVESETTINGS:
+            if(EEPROMENABLE) {
+              saveSettings();
+            }
+            break;
           // Assume that all parameters other than SCANDIR has resolution and saturation values
           default:
             if(val == r.clockwise()) {
@@ -178,12 +212,13 @@ void loop() {
                 values[currentSelection] = valuesMin[currentSelection] :    // Saturate at min
                 values[currentSelection] -= resolutions[currentSelection];  // Decrement by resolution
             }
-            lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection); // Move cursor to correct column from the right and chosen row
-            lcd.print(values[currentSelection]);          // Print out value
-            delay(50);
-            lcd.print(parameterUnits[currentSelection]);  // Print out units
-            delay(50);
-            lcd.setCursor(NUMCOLS - 1, currentSelection); // Move cursor back to last column on row so blinking is in the right place
+            updateValueOnScreen(currentSelection);
+            // lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection); // Move cursor to correct column from the right and chosen row
+            // lcd.print(values[currentSelection]);          // Print out value
+            // delay(50);
+            // lcd.print(parameterUnits[currentSelection]);  // Print out units
+            // delay(50);
+            // lcd.setCursor(NUMCOLS - 1, currentSelection); // Move cursor back to last column on row so blinking is in the right place
             break;
         }
         break;
@@ -191,7 +226,95 @@ void loop() {
         break;
     }
   }
+}
 
-  
+// Function to update value of parameter on screen
+void updateValueOnScreen(int currentSelection) {
+  // Move cursor to correct column from the right and chosen row
+  if(currentSelection == STEPSIZE && values[currentSelection] > 9.95) {
+    // If STEPSIZE is 10.00, it needs one more cell
+    lcd.setCursor(NUMCOLS - 2 - parameterValueLengths[currentSelection], currentSelection);
+  }
+  else {
+    lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection);
+  }
+  lcd.print(values[currentSelection]);          // Print out value
+  delay(50);
+  lcd.print(parameterUnits[currentSelection]);  // Print out units
+  delay(50);
+  // Move cursor back to last column on row so blinking is in the right place
+  lcd.setCursor(NUMCOLS - 1, currentSelection); 
+}
 
+// Function to print out menu labels
+// Takes in position of menu selector
+void printMenuLabels(int currentSelection) {
+  // Page 2
+  if(currentSelection >= 4) {
+    for(int i = 4; i < 7; ++i) {
+      lcd.setCursor(0, i - 4);
+      lcd.print(menuLabels[i]);
+    }
+  }
+  // Page 1
+  else {
+    for(int i = 0; i < 4; ++i) {
+      lcd.setCursor(0, i);
+      lcd.print(menuLabels[i]);
+    }
+  }
+}
+
+// Function to print out parameter values
+// Takes in position of menu selector
+void printValues(int currentSelection) {
+  // Page 2
+  if(currentSelection >= 4) {
+    for(int i = 4; i < 6; ++i) {
+      lcd.setCursor(0, i - 4);
+      lcd.print(values[i]);
+    }
+  }
+  // Page 1
+  else {
+    for(int i = 0; i < 4; ++i) {
+      lcd.setCursor(0, i);
+      lcd.print(values[i]);
+    }
+  }
+}
+
+// Function to print out full menu page of labels and values
+// Takes in position of menu selector
+void printPage(int currentSelection) {
+  lcd.clear();
+  printMenuLabels(currentSelection);
+  printValues(currentSelection);
+}
+
+// Compute resolution, min, and max values for following parameters:
+// Total travel
+void computeParameters() {
+
+}
+
+// Save settings to EEPROM
+// Teensy does wear levelling by itself so addresses we pass in can be fixed
+// Unnecessarily uses more storage for some of the values but Teensy has enough storage 
+// to make the values[] array convenient for programming and understanding later
+void saveSettings() {
+  EEPROM.put(EEPROMSTEPSIZEADDR, values[STEPSIZE]);
+  EEPROM.put(EEPROMNUMSTEPSADDR, values[NUMSTEPS]);   
+  EEPROM.put(EEPROMEXPTIMEADDR, values[EXPTIME]);
+  EEPROM.put(EEPROMSCANDIRADDR, values[SCANDIR]);
+  EEPROM.put(EEPROMPIEZOTRAVELADDR, values[PIEZOTRAVEL]);
+}
+
+// Load settings from EEPROM
+void loadSettings() {
+  EEPROM.get(EEPROMSTEPSIZEADDR, values[STEPSIZE]);
+  EEPROM.get(EEPROMNUMSTEPSADDR, values[NUMSTEPS]);   
+  EEPROM.get(EEPROMEXPTIMEADDR, values[EXPTIME]);
+  EEPROM.get(EEPROMSCANDIRADDR, values[SCANDIR]);
+  EEPROM.get(EEPROMPIEZOTRAVELADDR, values[PIEZOTRAVEL]);
 }
