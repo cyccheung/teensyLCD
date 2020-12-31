@@ -5,7 +5,7 @@
 
 #define NUMROWS 4               // LCD height
 #define NUMCOLS 20              // LCD width
-#define NUMMENUITEMS 6          // Number of parameters
+#define NUMMENUITEMS 7          // Number of parameters and options
 #define MENUITEMMAXLENGTH 16    // Length of longest parameter name including null character
 #define SETUPDEBUG 0            // Does not run loop if true
 #define EEPROMENABLE 0          // Disable at all times unless testing EEPROM or overall system
@@ -78,10 +78,17 @@ int currentSelection = STEPSIZE;      // Stores which menu item currently pointi
 int expTimePosition = 0;              // Stores offset from start of exposure time value cells
 int eepromAddr = 0;
 
+void loadSettings();
+void printPage(int currentSelection);
+void computeParameters();
+
 void setup() {
   lcd.begin(NUMCOLS, NUMROWS);
   lcd.setBacklight(HIGH);
   lcd.home();
+  lcd.noAutoscroll();                 // Left justify
+  lcd.print(selector);                // Print out selector symbol
+  delay(50);
 
   // Load up saved values for each parameter
   if(EEPROMENABLE) {
@@ -89,6 +96,11 @@ void setup() {
   }
   // Print out values for each parameter
   printPage(currentSelection);
+  // Print out selector
+  lcd.home();
+  lcd.noAutoscroll();                 // Left justify
+  lcd.print(selector);                // Print out selector symbol
+  delay(50);
   // TODO: Compute resolution, min, and max values for parameters
   computeParameters();
   // TODO: Output values to peripherals
@@ -172,13 +184,15 @@ void loop() {
             }
             if(val == r.clockwise()) {
               values[currentSelection] += difference;                       // Increment by difference
-              values[currentSelection] >= valuesMax[currentSelection] ? 
-                values[currentSelection] = valuesMax[currentSelection]      // Saturate at max
+              if(values[currentSelection] >= valuesMax[currentSelection]) {
+                values[currentSelection] = valuesMax[currentSelection];     // Saturate at max
+              } 
             }
             else if(val == r.counterClockwise()) {
               values[currentSelection] -= difference;                       // Decrement by difference
-              values[currentSelection] <= valuesMin[currentSelection] ? 
-                values[currentSelection] = valuesMin[currentSelection] :    // Saturate at min
+              if(values[currentSelection] <= valuesMin[currentSelection]) {
+                values[currentSelection] = valuesMin[currentSelection];     // Saturate at min
+              }
             }
             updateValueOnScreen(currentSelection);
             break;
@@ -230,8 +244,9 @@ void loop() {
 
 // Function to update value of parameter on screen
 void updateValueOnScreen(int currentSelection) {
+  if(currentSelection == SAVESETTINGS) { return; }
   // Move cursor to correct column from the right and chosen row
-  if(currentSelection == STEPSIZE && values[currentSelection] > 9.95) {
+  if(currentSelection == STEPSIZE && values[currentSelection] > 9.99) {
     // If STEPSIZE is 10.00, it needs one more cell
     lcd.setCursor(NUMCOLS - 2 - parameterValueLengths[currentSelection], currentSelection);
   }
@@ -289,7 +304,8 @@ void printValues(int currentSelection) {
 void printPage(int currentSelection) {
   lcd.clear();
   printMenuLabels(currentSelection);
-  printValues(currentSelection);
+  updateValueOnScreen(currentSelection);
+//  printValues(currentSelection);
 }
 
 // Compute resolution, min, and max values for following parameters:
