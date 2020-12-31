@@ -127,10 +127,10 @@ void loop() {
       lcd.blink();
     }
     // Special case if user is changing exposure time
-    // Move the cursor to the left by one spot
+    // Move the cursor to the right by one spot
     else if(state == ADJUSTING && currentSelection == EXPTIME && expTimePosition < 3) {
       expTimePosition++;
-      lcd.setCursor(NUMCOLS - parameterValueLengths[currentSelection] + expTimePosition, currentSelection);
+      lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection] + expTimePosition, currentSelection);
     }
     // User is done adjusting value
     else if(state == ADJUSTING) {
@@ -187,7 +187,7 @@ void loop() {
             for(int i = 0; i < expTimePosition; ++i) {
               difference /= 10;
             }
-            lcd.setCursor();
+//            lcd.setCursor();
             if(val == r.clockwise()) {
               values[currentSelection] += difference;                       // Increment by difference
               if(values[currentSelection] >= valuesMax[currentSelection]) {
