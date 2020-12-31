@@ -253,7 +253,12 @@ void updateValueOnScreen(int currentSelection) {
   else {
     lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection);
   }
-  lcd.print(values[currentSelection]);          // Print out value
+  if(currentSelection == EXPTIME || currentSelection == NUMSTEPS || currentSelection == PIEZOTRAVEL) {
+    lcd.print((int)values[currentSelection]);          // Print out int casted value
+  }
+  else {
+    lcd.print(values[currentSelection]);          // Print out value
+  }
   delay(50);
   lcd.print(parameterUnits[currentSelection]);  // Print out units
   delay(50);
@@ -317,7 +322,7 @@ void computeParameters() {
 // Save settings to EEPROM
 // Teensy does wear levelling by itself so addresses we pass in can be fixed
 // Unnecessarily uses more storage for some of the values but Teensy has enough storage 
-// to make the values[] array convenient for programming and understanding later
+// so we can use the values[] array for convenience and ease of understanding later
 void saveSettings() {
   EEPROM.put(EEPROMSTEPSIZEADDR, values[STEPSIZE]);
   EEPROM.put(EEPROMNUMSTEPSADDR, values[NUMSTEPS]);   
