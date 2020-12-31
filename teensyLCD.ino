@@ -29,7 +29,7 @@ char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
                                         };
 
 // Stores the number of characters the values of each parameter takes, including units
-int parameterValueLengths[] = {5, 3, 6, 6, 1, 5};
+int parameterValueLengths[] = {5, 3, 6, 5, 1, 5};
 // Stores the char arrays of units that each parameter takes
 // char parameterUnits[NUMMENUITEMS][3];
 char parameterUnits[][3] = {  "um",
@@ -96,7 +96,7 @@ void setup() {
   }
   // Print out values for each parameter
   printPage(currentSelection);
-  // Print out selector
+  // Print out selector on first row
   lcd.home();
   lcd.noAutoscroll();                 // Left justify
   lcd.print(selector);                // Print out selector symbol
@@ -113,12 +113,17 @@ void loop() {
   volatile unsigned char val = r.process();
 
   // Check to see if the button has been pressed
-  // Passes in a debounce delay of 20 milliseconds
+  // Passes in a debounce delay of 10 milliseconds
   if (r.buttonPressedReleased(10)) {
     if(state == SCROLLING) {
       state = ADJUSTING;
-      // Move cursor to right most spot and blink it
-      lcd.setCursor(NUMCOLS - 1, currentSelection);
+      if(currentSelection == EXPTIME) {
+
+      }
+      else {
+        // Move cursor to right most spot and blink it
+        lcd.setCursor(NUMCOLS - 1, currentSelection);
+      }
       lcd.blink();
     }
     // Special case if user is changing exposure time
@@ -182,6 +187,7 @@ void loop() {
             for(int i = 0; i < expTimePosition; ++i) {
               difference /= 10;
             }
+            lcd.setCursor();
             if(val == r.clockwise()) {
               values[currentSelection] += difference;                       // Increment by difference
               if(values[currentSelection] >= valuesMax[currentSelection]) {
@@ -275,7 +281,10 @@ void updateValueOnScreen(int currentSelection) {
   delay(50);
   lcd.print(parameterUnits[currentSelection]);  // Print out units
   delay(50);
-  if(currentSelection != EXPTIME) {
+  if(currentSelection == EXPTIME) {
+    lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection] + expTimePosition, currentSelection);
+  }
+  else {
     // Move cursor back to last column on row so blinking is in the right place
     lcd.setCursor(NUMCOLS - 1, currentSelection); 
   }
