@@ -213,7 +213,7 @@ void loop() {
           val == r.clockwise() ? currentSelection++ : currentSelection--;
         }
         // Saturate currentSelection
-        currentSelection = saturate(currentSelection, 0, NUMMENUITEMS - 1)
+        currentSelection = saturate(currentSelection, 0, NUMMENUITEMS - 1);
 
         lcd.setCursor(0, currentSelection % 4); // Move cursor to 0th column and chosen row
         lcd.noAutoscroll();                     // Left justify
@@ -244,7 +244,7 @@ void loop() {
         val == r.clockwise() ? values[currentSelection] += difference : values[currentSelection] -= difference;
         values[currentSelection] = saturate(values[currentSelection], 0.0f, 9999.0f);
         printValue(currentSelection);
-        lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition);   // So cursor blinks over digit being edited
+        lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection);   // So cursor blinks over digit being edited
         break;
       case ADJSCANDIR:
       // Toggle between 0.0 and 1.0
