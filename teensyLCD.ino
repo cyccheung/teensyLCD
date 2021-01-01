@@ -30,32 +30,31 @@ char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
                                         };
 
 // Stores the number of characters the values of each parameter takes, including units
-int parameterValueLengths[] = {5, 3, 6, 5, 1, 5};
+//int parameterValueLengths[] = {5, 3, 6, 5, 1, 5};
 // Stores the char arrays of units that each parameter takes
-// char parameterUnits[NUMMENUITEMS][3];
-char parameterUnits[][3] = {  "um",
-                              "",
-                              "um",
-                              "ms",
-                              "",
-                              "um"
-                            };
+//char parameterUnits[][3] = {  "um",
+//                              "",
+//                              "um",
+//                              "ms",
+//                              "",
+//                              "um"
+//                            };
 // Stores minimum value each parameter can be
 float valuesMin[] = {0.0, 0.0, 0.0, 1.0, 0.0, 100.0};
 // Stores maximum value each parameter can be
-float valuesMax[] = {10.0, 0.0, 0.0, 9999.0, 0.0, 500.0};
+float valuesMax[] = {10.0, 0.0, 0.0, 9999.0, 1.0, 500.0};
 // Stores the values of each parameter
 // Initializes them as minimum values
 float values[] = {valuesMin[0], valuesMin[1], valuesMin[2], valuesMin[3], valuesMin[4], valuesMin[5]};
 
 // Stores the amount that one encoder detent adjusts parameter by
-float resolutions[] = { 0.1,  // Step size 
-                        1.0,  // Num steps 
-                        1.0,  // Total travel
-                        1.0,  // Exposure time
-                        1.0,  // Scanning direction, do not use this value
-                        50.0  // Piezo travel 
-                        };
+//float resolutions[] = { 0.1,  // Step size 
+//                        1.0,  // Num steps 
+//                        1.0,  // Total travel
+//                        1.0,  // Exposure time
+//                        1.0,  // Scanning direction, do not use this value
+//                        50.0  // Piezo travel 
+//                        };
 
 char selector = '>';  // Symbol to use for selecting parameter in main menu
 
@@ -96,7 +95,7 @@ void setup() {
   lcd.home();
   lcd.noAutoscroll();                 // Left justify
   lcd.print(selector);                // Print out selector symbol
-  delay(50);
+  delay(PRINTDELAY);
 
   // Load up saved values for each parameter
   if(EEPROMENABLE) {
@@ -228,7 +227,7 @@ void loop() {
         break;
       case ADJNUMSTEPS:
         val == r.clockwise() ? values[currentSelection] += 1 : values[currentSelection] -= 1;
-        values[currentSelection] = saturate(values[currentSelection], 0.0f, 10.0f); // TODO: Replace limits with calculated limits
+        values[currentSelection] = saturate((int)values[currentSelection], 0, 10); // TODO: Replace limits with calculated limits
         printValue(currentSelection);
         // TODO: Update value of total travel and print it out
         break;
@@ -242,17 +241,18 @@ void loop() {
           difference /= 10;
         }
         val == r.clockwise() ? values[currentSelection] += difference : values[currentSelection] -= difference;
-        values[currentSelection] = saturate(values[currentSelection], 0.0f, 9999.0f);
+        values[currentSelection] = saturate(values[currentSelection], 1.0f, 9999.0f);
         printValue(currentSelection);
-        lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection);   // So cursor blinks over digit being edited
+        // lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection);   // So cursor blinks over digit being edited
         break;
       case ADJSCANDIR:
       // Toggle between 0.0 and 1.0
-        values[currentSelection] < 0.5 ? values[currentSelection] = 1.0 : values[currentSelection] = 0.0;
+        val == r.clockwise() ? values[currentSelection] += 1.0f : values[currentSelection] -= 1.0;
+        printValue(currentSelection);
         break;
       case ADJPIEZOTRAVEL:
-        val == r.clockwise() ? values[currentSelection] += 50.0 : values[currentSelection] -= 50.0;
-        values[currentSelection] = saturate(values[currentSelection], 100.0f, 500.0f);
+        val == r.clockwise() ? values[currentSelection] += 50 : values[currentSelection] -= 50;
+        values[currentSelection] = saturate((int)values[currentSelection], 100, 500);
         printValue(currentSelection);
         break;
       case ADJSAVESETTINGS:
@@ -260,6 +260,19 @@ void loop() {
       default:
         break;
     }
+  }
+
+  // This block handles anything that needs to be done when nothing is pressed
+  switch(state) {
+    case ADJEXPTIME:
+      lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection);   // So cursor blinks over digit being edited
+      break;
+    case ADJSCANDIR:
+      lcd.setCursor(NUMCOLS - 1, currentSelection);   // So cursor blinks over +/-
+      break;
+    default:
+      lcd.setCursor(0, currentSelection);
+      break;
   }
 }
 /*
@@ -341,13 +354,17 @@ void printValue(int currentSelection) {
       break;
     case NUMSTEPS:
       // TODO: See how many digits are needed
-      lcd.setCursor(NUMCOLS - 1 - 6, printRow);
+      lcd.setCursor(NUMCOLS - 1 - 3, printRow);
+      if(values[currentSelection] < 10) {
+        lcd.print(" ");
+        delay(PRINTDELAY);
+      }
       lcd.print((int)values[currentSelection]);   // Cast to an int
       delay(PRINTDELAY);
       break;
     case TOTALTRAVEL:
       // TODO: See how many digits are needed
-      lcd.setCursor(NUMCOLS - 1 - 6, printRow);
+      lcd.setCursor(NUMCOLS - 1 - 5, printRow);
       lcd.print(values[currentSelection]);
       delay(PRINTDELAY);
       lcd.print("um");
@@ -364,18 +381,19 @@ void printValue(int currentSelection) {
       delay(PRINTDELAY);
       break;
     case SCANDIR:
-      lcd.setCursor(NUMCOLS - 1, printRow);
-      if(values[currentSelection] > 0.5) {
-        lcd.print("+");
-      }
-      else {
-        lcd.print("-");
-      }
+      lcd.setCursor(NUMCOLS - 1 - 1, printRow);
+      lcd.print((int)values[currentSelection]);
+//      if(values[currentSelection] > 0.5) {
+//        lcd.print("+");
+//      }
+//      else {
+//        lcd.print("-");
+//      }
       delay(PRINTDELAY);
       break;
     case PIEZOTRAVEL:
       lcd.setCursor(NUMCOLS - 1 - 4, printRow);
-      lcd.print(values[currentSelection]);
+      lcd.print((int)values[currentSelection]);
       delay(PRINTDELAY);
       lcd.print("um");
       delay(PRINTDELAY);
@@ -435,12 +453,20 @@ void loadSettings() {
 
 // Function that saturates val between min and max
 float saturate(float val, float minimum, float maximum) {
-  val < minimum ? return minimum :
-  val > maximum ? return maximum :
+  if(val < minimum) {
+    return minimum;
+  }
+  else if(val > maximum) {
+    return maximum;
+  }
   return val;
 }
 int saturate(int val, int minimum, int maximum) {
-  val < minimum ? return minimum :
-  val > maximum ? return maximum :
+  if(val < minimum) {
+    return minimum;
+  }
+  else if(val > maximum) {
+    return maximum;
+  }
   return val;
 }
