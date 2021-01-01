@@ -434,13 +434,13 @@ void loadSettings() {
 }
 
 // Function that saturates val between min and max
-float saturate(float val, float min, float max) {
-  val < min ? return min :
-  val > max ? return max :
+float saturate(float val, float minimum, float maximum) {
+  val < minimum ? return minimum :
+  val > maximum ? return maximum :
   return val;
 }
-int saturate(int val, int min, int max) {
-  val < min ? return min :
-  val > max ? return max :
+int saturate(int val, int minimum, int maximum) {
+  val < minimum ? return minimum :
+  val > maximum ? return maximum :
   return val;
 }
