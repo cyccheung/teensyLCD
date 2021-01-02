@@ -6,7 +6,7 @@
 #define NUMROWS 4               // LCD height
 #define NUMCOLS 20              // LCD width
 #define NUMMENUITEMS 7          // Number of parameters and options
-#define MENUITEMMAXLENGTH 16    // Length of longest parameter name including null character
+#define MENUITEMMAXLENGTH 16
 #define PRINTDELAY 50           // ms to wait after printing
 #define SETUPDEBUG 0            // Does not run loop if true
 #define EEPROMENABLE 0          // Disable at all times unless testing EEPROM or overall system
@@ -20,41 +20,15 @@
 Adafruit_LiquidCrystal lcd(0);  // Change number if I2C address changes
 Rotary r = Rotary(5, 3, 4);     // Encoder pin A, Encoder pin B, button pin
 
+// Reorder this array and MENUITEMS enum below to change menu order
 char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
                                           " NUM STEPS:",
                                           " TOTAL TRAVEL:",
-                                          " EXP TIME:",
                                           " SCAN DIR:",
+                                          " EXP TIME:",
                                           " PIEZO TRAVEL:",
                                           " SAVE SETTINGS"
                                         };
-
-// Stores the number of characters the values of each parameter takes, including units
-//int parameterValueLengths[] = {5, 3, 6, 5, 1, 5};
-// Stores the char arrays of units that each parameter takes
-//char parameterUnits[][3] = {  "um",
-//                              "",
-//                              "um",
-//                              "ms",
-//                              "",
-//                              "um"
-//                            };
-// Stores minimum value each parameter can be
-float valuesMin[] = {0.0, 0.0, 0.0, 1.0, 0.0, 100.0};
-// Stores maximum value each parameter can be
-float valuesMax[] = {10.0, 0.0, 0.0, 9999.0, 1.0, 500.0};
-// Stores the values of each parameter
-// Initializes them as minimum values
-float values[] = {valuesMin[0], valuesMin[1], valuesMin[2], valuesMin[3], valuesMin[4], valuesMin[5]};
-
-// Stores the amount that one encoder detent adjusts parameter by
-//float resolutions[] = { 0.1,  // Step size 
-//                        1.0,  // Num steps 
-//                        1.0,  // Total travel
-//                        1.0,  // Exposure time
-//                        1.0,  // Scanning direction, do not use this value
-//                        50.0  // Piezo travel 
-//                        };
 
 char selector = '>';  // Symbol to use for selecting parameter in main menu
 
@@ -71,18 +45,28 @@ enum STATES {
   SCROLLING
 };
 
+// Reorder this enum and menuLabels above to change menu order
 enum MENUITEMS {
   STEPSIZE,
   NUMSTEPS,
   TOTALTRAVEL,
-  EXPTIME,
   SCANDIR,
+  EXPTIME,
   PIEZOTRAVEL,
   SAVESETTINGS
 };
 
+// Stores minimum value each parameter can be
+float valuesMin[NUMMENUITEMS-1];
+// Stores maximum value each parameter can be
+float valuesMax[NUMMENUITEMS-1];
+
+// Stores the values of each parameter
+// Initializes them as minimum values
+float values[] = {valuesMin[0], valuesMin[1], valuesMin[2], valuesMin[3], valuesMin[4], valuesMin[5]};
+
 int state = SCROLLING;                // Start off in scrolling mode
-int currentSelection = STEPSIZE;      // Stores which menu item currently pointing at
+int currentSelection = 0;             // Stores which menu item currently pointing at
 int expTimePosition = 0;              // Stores offset from start of exposure time value cells
 
 void loadSettings();
@@ -90,6 +74,15 @@ void printPage(int currentSelection);
 void computeParameters();
 
 void setup() {
+  valuesMin[STEPSIZE] = 0.0f; valuesMin[NUMSTEPS] = 0.0; valuesMin[TOTALTRAVEL] = 0.0; valuesMin[EXPTIME] = 1.0;    valuesMin[SCANDIR] = 0.0; valuesMin[PIEZOTRAVEL] = 100.0;
+  valuesMax[STEPSIZE] = 10.0; valuesMax[NUMSTEPS] = 0.0; valuesMax[TOTALTRAVEL] = 0.0; valuesMax[EXPTIME] = 9999.0; valuesMax[SCANDIR] = 1.0; valuesMax[PIEZOTRAVEL] = 500.0;
+  values[STEPSIZE] = valuesMin[STEPSIZE]; 
+  values[NUMSTEPS] = valuesMin[NUMSTEPS]; 
+  values[TOTALTRAVEL] = valuesMin[TOTALTRAVEL]; 
+  values[EXPTIME] = valuesMin[EXPTIME]; 
+  values[SCANDIR] = valuesMin[SCANDIR]; 
+  values[PIEZOTRAVEL] = valuesMin[PIEZOTRAVEL]; 
+  
   lcd.begin(NUMCOLS, NUMROWS);
   lcd.setBacklight(HIGH);
   lcd.home();
@@ -107,10 +100,12 @@ void setup() {
   lcd.home();
   lcd.noAutoscroll();                 // Left justify
   lcd.print(selector);                // Print out selector symbol
-  delay(50);
+  delay(PRINTDELAY);
   // TODO: Compute resolution, min, and max values for parameters
   computeParameters();
   // TODO: Output values to peripherals
+
+  Serial.begin(9600);
 }
 
 void loop() {
@@ -124,6 +119,7 @@ void loop() {
   // This block of code deals with state machine logic only, nothing should be printed
   // and cursor should not be moved here, only state transitions, global variable updates, and cursor blink
   if (r.buttonPressedReleased(10)) {
+    Serial.println("Button pressed");
     switch(state) {
       case SCROLLING:
         // If selector is pointing at save settings, call save function
@@ -135,7 +131,32 @@ void loop() {
         // If selector pointing at parameters
         else {
           // If user is scrolling, send him to adjusting state for chosen parameter
-          state = currentSelection;
+          switch(currentSelection) {
+            case STEPSIZE:
+              state = ADJSTEPSIZE;
+              break;
+            case NUMSTEPS:
+              state = ADJNUMSTEPS;
+              break;
+            case TOTALTRAVEL:
+              state = ADJTOTALTRAVEL;
+              break;
+            case EXPTIME:
+              state = ADJEXPTIME;
+              break;
+            case SCANDIR:
+              state = ADJSCANDIR;
+              Serial.println("Going to ADJSCANDIR");
+//              lcd.setCursor(13, 0);
+//              lcd.print("Chosen");
+              break;
+            case PIEZOTRAVEL:
+              state = ADJPIEZOTRAVEL;
+              break;
+            default:
+              break;
+          }
+          // state = currentSelection;
         }
         lcd.blink();
         break;
@@ -171,6 +192,7 @@ void loop() {
       case ADJSCANDIR:
         // User is done adjusting scan direction, just go back to scrolling
         state = SCROLLING;
+        Serial.println("Going to Scrolling");
         lcd.noBlink();
         break;
       case ADJPIEZOTRAVEL:
@@ -190,8 +212,18 @@ void loop() {
 
   // If encoder has been turned
   if(val) {
+//    Serial.print("Turned in state: ");
+//    Serial.println(state == ADJSCANDIR);
+    if(state == SCROLLING) {
+
+    }
+    else if(state == ADJSCANDIR) {
+      Serial.println("Turned in adjscandir");
+    }
+    
     switch(state) {
       case SCROLLING:
+        Serial.println("Turned in SCROLLING");
         lcd.setCursor(0, currentSelection % 4); // Move cursor to selector
         lcd.noAutoscroll();                     // Left justify
         lcd.print(" ");                         // Erase selector symbol
@@ -220,21 +252,25 @@ void loop() {
         delay(PRINTDELAY);
         break;
       case ADJSTEPSIZE:
+        Serial.println("Turned in ADJSTEPSIZE");
         val == r.clockwise() ? values[currentSelection] += 0.1 : values[currentSelection] -= 0.1;
         values[currentSelection] = saturate(values[currentSelection], 0.0f, 10.0f); // TODO: Replace limits with calculated limits
         printValue(currentSelection);
         // TODO: Update value of total travel and print it out
         break;
       case ADJNUMSTEPS:
+        Serial.println("Turned in ADJNUMSTEPS");
         val == r.clockwise() ? values[currentSelection] += 1 : values[currentSelection] -= 1;
         values[currentSelection] = saturate((int)values[currentSelection], 0, 10); // TODO: Replace limits with calculated limits
         printValue(currentSelection);
         // TODO: Update value of total travel and print it out
         break;
       case ADJTOTALTRAVEL:
+        Serial.println("Turned in ADJTOTALTRAVEL");
         // Should not be adjusting this value
         break;
       case ADJEXPTIME:
+        Serial.println("Turned in ADJEXPTIME");
         // Logic edits thousands place first
         int difference = 1000;
         for(int i = 0; i < expTimePosition; ++i) {
@@ -246,34 +282,54 @@ void loop() {
         // lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection);   // So cursor blinks over digit being edited
         break;
       case ADJSCANDIR:
-      // Toggle between 0.0 and 1.0
-        val == r.clockwise() ? values[currentSelection] += 1.0f : values[currentSelection] -= 1.0;
+        Serial.println("Turned in ADJSCANDIR");
+        // Toggle between 0.0 and 1.0
+        if(values[currentSelection] > 0.5f) {
+          values[currentSelection] = 0.0f;
+        }
+        else {
+          values[currentSelection] = 1.0f;
+        }
+        Serial.println(values[currentSelection]);
         printValue(currentSelection);
         break;
       case ADJPIEZOTRAVEL:
+        Serial.println("Turned in ADJPIEZOTRAVEL");   
         val == r.clockwise() ? values[currentSelection] += 50 : values[currentSelection] -= 50;
         values[currentSelection] = saturate((int)values[currentSelection], 100, 500);
         printValue(currentSelection);
         break;
       case ADJSAVESETTINGS:
+        Serial.println("Turned in ADJSAVESETTINGS");   
         break;
       default:
+        Serial.println("Turned in default");
         break;
     }
+    for(int i = 0; i < 6; ++i) {
+      Serial.print(values[i]);
+      Serial.print(" ");
+    }
+    Serial.println("");
+    
+//    Serial.println("Done switch");
   }
 
   // This block handles anything that needs to be done when nothing is pressed
   switch(state) {
     case ADJEXPTIME:
-      lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection);   // So cursor blinks over digit being edited
+      lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection % 4);   // So cursor blinks over digit being edited
       break;
-    case ADJSCANDIR:
-      lcd.setCursor(NUMCOLS - 1, currentSelection);   // So cursor blinks over +/-
-      break;
+//    case ADJSCANDIR:
+//      lcd.setCursor(NUMCOLS - 1 - 1, currentSelection % 4);   // So cursor blinks over +/-
+//      lcd.print("FF");
+//      break;
     default:
-      lcd.setCursor(0, currentSelection);
+      lcd.setCursor(0, currentSelection % 4);
       break;
   }
+
+//  Serial.println(state);
 }
 /*
 // Function to update value of parameter on screen
@@ -382,13 +438,14 @@ void printValue(int currentSelection) {
       break;
     case SCANDIR:
       lcd.setCursor(NUMCOLS - 1 - 1, printRow);
-      lcd.print((int)values[currentSelection]);
-//      if(values[currentSelection] > 0.5) {
-//        lcd.print("+");
-//      }
-//      else {
-//        lcd.print("-");
-//      }
+      delay(PRINTDELAY);
+//      values[currentSelection] = 1.0f;
+      if(values[currentSelection] > 0.5) {
+        lcd.print("+");
+      }
+      else {
+        lcd.print("-");
+      }
       delay(PRINTDELAY);
       break;
     case PIEZOTRAVEL:
