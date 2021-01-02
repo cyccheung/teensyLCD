@@ -104,8 +104,6 @@ void setup() {
   // TODO: Compute resolution, min, and max values for parameters
   computeParameters();
   // TODO: Output values to peripherals
-
-  Serial.begin(9600);
 }
 
 void loop() {
@@ -119,7 +117,6 @@ void loop() {
   // This block of code deals with state machine logic only, nothing should be printed
   // and cursor should not be moved here, only state transitions, global variable updates, and cursor blink
   if (r.buttonPressedReleased(10)) {
-    Serial.println("Button pressed");
     switch(state) {
       case SCROLLING:
         // If selector is pointing at save settings, call save function
@@ -146,9 +143,6 @@ void loop() {
               break;
             case SCANDIR:
               state = ADJSCANDIR;
-              Serial.println("Going to ADJSCANDIR");
-//              lcd.setCursor(13, 0);
-//              lcd.print("Chosen");
               break;
             case PIEZOTRAVEL:
               state = ADJPIEZOTRAVEL;
@@ -192,7 +186,6 @@ void loop() {
       case ADJSCANDIR:
         // User is done adjusting scan direction, just go back to scrolling
         state = SCROLLING;
-        Serial.println("Going to Scrolling");
         lcd.noBlink();
         break;
       case ADJPIEZOTRAVEL:
@@ -212,18 +205,7 @@ void loop() {
 
   // If encoder has been turned
   if(val) {
-//    Serial.print("Turned in state: ");
-//    Serial.println(state == ADJSCANDIR);
     if(state == SCROLLING) {
-
-    }
-    else if(state == ADJSCANDIR) {
-      Serial.println("Turned in adjscandir");
-    }
-    
-    switch(state) {
-      case SCROLLING:
-        Serial.println("Turned in SCROLLING");
         lcd.setCursor(0, currentSelection % 4); // Move cursor to selector
         lcd.noAutoscroll();                     // Left justify
         lcd.print(" ");                         // Erase selector symbol
@@ -250,69 +232,43 @@ void loop() {
         lcd.noAutoscroll();                     // Left justify
         lcd.print(selector);                    // Print out selector symbol
         delay(PRINTDELAY);
-        break;
-      case ADJSTEPSIZE:
-        Serial.println("Turned in ADJSTEPSIZE");
+    }
+    else if(state == ADJSTEPSIZE) {
         val == r.clockwise() ? values[currentSelection] += 0.1 : values[currentSelection] -= 0.1;
         values[currentSelection] = saturate(values[currentSelection], 0.0f, 10.0f); // TODO: Replace limits with calculated limits
         printValue(currentSelection);
         // TODO: Update value of total travel and print it out
-        break;
-      case ADJNUMSTEPS:
-        Serial.println("Turned in ADJNUMSTEPS");
+    }
+    else if(state == ADJNUMSTEPS) {
         val == r.clockwise() ? values[currentSelection] += 1 : values[currentSelection] -= 1;
         values[currentSelection] = saturate((int)values[currentSelection], 0, 10); // TODO: Replace limits with calculated limits
         printValue(currentSelection);
         // TODO: Update value of total travel and print it out
-        break;
-      case ADJTOTALTRAVEL:
-        Serial.println("Turned in ADJTOTALTRAVEL");
-        // Should not be adjusting this value
-        break;
-      case ADJEXPTIME:
-        Serial.println("Turned in ADJEXPTIME");
-        // Logic edits thousands place first
-        int difference = 1000;
-        for(int i = 0; i < expTimePosition; ++i) {
-          difference /= 10;
-        }
-        val == r.clockwise() ? values[currentSelection] += difference : values[currentSelection] -= difference;
-        values[currentSelection] = saturate(values[currentSelection], 1.0f, 9999.0f);
-        printValue(currentSelection);
-        // lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection);   // So cursor blinks over digit being edited
-        break;
-      case ADJSCANDIR:
-        Serial.println("Turned in ADJSCANDIR");
-        // Toggle between 0.0 and 1.0
-        if(values[currentSelection] > 0.5f) {
-          values[currentSelection] = 0.0f;
-        }
-        else {
-          values[currentSelection] = 1.0f;
-        }
-        Serial.println(values[currentSelection]);
-        printValue(currentSelection);
-        break;
-      case ADJPIEZOTRAVEL:
-        Serial.println("Turned in ADJPIEZOTRAVEL");   
-        val == r.clockwise() ? values[currentSelection] += 50 : values[currentSelection] -= 50;
-        values[currentSelection] = saturate((int)values[currentSelection], 100, 500);
-        printValue(currentSelection);
-        break;
-      case ADJSAVESETTINGS:
-        Serial.println("Turned in ADJSAVESETTINGS");   
-        break;
-      default:
-        Serial.println("Turned in default");
-        break;
     }
-    for(int i = 0; i < 6; ++i) {
-      Serial.print(values[i]);
-      Serial.print(" ");
+    else if(state == ADJTOTALTRAVEL) {
     }
-    Serial.println("");
-    
-//    Serial.println("Done switch");
+    else if(state == ADJEXPTIME) {
+      // Logic edits thousands place first
+      int difference = 1000;
+      for(int i = 0; i < expTimePosition; ++i) {
+        difference /= 10;
+      }
+      val == r.clockwise() ? values[currentSelection] += difference : values[currentSelection] -= difference;
+      values[currentSelection] = saturate(values[currentSelection], 1.0f, 9999.0f);
+      printValue(currentSelection);
+    }
+    else if(state == ADJSCANDIR) {
+      // Toggle between 0.0 and 1.0
+      values[currentSelection] > 0.5f ? values[currentSelection] = 0.0f : values[currentSelection] = 1.0f;
+      printValue(currentSelection);
+    }
+    else if(state == ADJPIEZOTRAVEL) {
+      val == r.clockwise() ? values[currentSelection] += 50 : values[currentSelection] -= 50;
+      values[currentSelection] = saturate((int)values[currentSelection], 100, 500);
+      printValue(currentSelection);
+    }
+    else if(state == ADJSAVESETTINGS) {}
+    else {}    
   }
 
   // This block handles anything that needs to be done when nothing is pressed
@@ -320,60 +276,15 @@ void loop() {
     case ADJEXPTIME:
       lcd.setCursor(NUMCOLS - 1 - 5 + expTimePosition, currentSelection % 4);   // So cursor blinks over digit being edited
       break;
-//    case ADJSCANDIR:
-//      lcd.setCursor(NUMCOLS - 1 - 1, currentSelection % 4);   // So cursor blinks over +/-
-//      lcd.print("FF");
-//      break;
+   case ADJSCANDIR:
+     lcd.setCursor(NUMCOLS - 1 - 1, currentSelection % 4);   // So cursor blinks over +/-
+     break;
     default:
       lcd.setCursor(0, currentSelection % 4);
       break;
   }
+}
 
-//  Serial.println(state);
-}
-/*
-// Function to update value of parameter on screen
-void updateValueOnScreen(int currentSelection) {
-  if(currentSelection == SAVESETTINGS) { return; }
-  // Move cursor to correct column from the right and chosen row
-  if(currentSelection == STEPSIZE && values[currentSelection] > 9.99) {
-    // If STEPSIZE is 10.00, it needs one more cell
-    lcd.setCursor(NUMCOLS - 2 - parameterValueLengths[currentSelection], currentSelection);
-  }
-  // Print out leading zeros for EXPTIME
-  else if(currentSelection == EXPTIME) {
-    lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection);
-    if(values[currentSelection] < 1000) {
-      lcd.print("0");
-    }
-    if(values[currentSelection] < 100) {
-      lcd.print("0");
-    }
-    if(values[currentSelection] < 10) {
-      lcd.print("0");
-    }
-  }
-  else {
-    lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection], currentSelection);
-  }
-  if(currentSelection == EXPTIME || currentSelection == NUMSTEPS || currentSelection == PIEZOTRAVEL) {
-    lcd.print((int)values[currentSelection]);          // Print out int casted value
-  }
-  else {
-    lcd.print(values[currentSelection]);          // Print out value
-  }
-  delay(50);
-  lcd.print(parameterUnits[currentSelection]);  // Print out units
-  delay(50);
-  if(currentSelection == EXPTIME) {
-    lcd.setCursor(NUMCOLS - 1 - parameterValueLengths[currentSelection] + expTimePosition, currentSelection);
-  }
-  else {
-    // Move cursor back to last column on row so blinking is in the right place
-    lcd.setCursor(NUMCOLS - 1, currentSelection); 
-  }
-}
-*/
 // Function to print out menu labels
 // Takes in position of menu selector
 void printMenuLabels(int currentSelection) {
@@ -439,13 +350,7 @@ void printValue(int currentSelection) {
     case SCANDIR:
       lcd.setCursor(NUMCOLS - 1 - 1, printRow);
       delay(PRINTDELAY);
-//      values[currentSelection] = 1.0f;
-      if(values[currentSelection] > 0.5) {
-        lcd.print("+");
-      }
-      else {
-        lcd.print("-");
-      }
+      values[currentSelection] > 0.5 ? lcd.print("+") : lcd.print("-");
       delay(PRINTDELAY);
       break;
     case PIEZOTRAVEL:
