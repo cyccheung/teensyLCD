@@ -16,6 +16,24 @@
 #define EEPROMEXPTIMEADDR 8
 #define EEPROMSCANDIRADDR 12
 #define EEPROMPIEZOTRAVELADDR 16
+// Resistor values
+#define R1 22
+#define R2 4
+#define R3 29
+#define R4 19
+#define R1R2 R1*R2/(R1+R2)  // R1 // R2 parallel
+#define R3R4 R3*R4/(R3+R4)  // R3 // R4 parallel
+// Gain values
+#define G1 R3R4/R1
+#define G2 R3/R1
+#define G3 R3R4/R1R2
+#define G4 R3/R1R2
+#define STAGE2GAIN 1.0f
+// Pin definitions
+#define SWD1 9
+#define SWD2 10
+#define SWD3 11
+#define SWD4 12
 
 Adafruit_LiquidCrystal lcd(0);  // Change number if I2C address changes
 Rotary r = Rotary(5, 3, 4);     // Encoder pin A, Encoder pin B, button pin
@@ -23,9 +41,9 @@ Rotary r = Rotary(5, 3, 4);     // Encoder pin A, Encoder pin B, button pin
 // Reorder this array and MENUITEMS enum below to change menu order
 char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
                                           " NUM STEPS:",
-                                          " TOTAL TRAVEL:",
-                                          " SCAN DIR:",
+                                          " TOT TRAVEL:",
                                           " EXP TIME:",
+                                          " SCAN DIR:",
                                           " PIEZO TRAVEL:",
                                           " SAVE SETTINGS"
                                         };
@@ -50,8 +68,8 @@ enum MENUITEMS {
   STEPSIZE,
   NUMSTEPS,
   TOTALTRAVEL,
-  SCANDIR,
   EXPTIME,
+  SCANDIR,
   PIEZOTRAVEL,
   SAVESETTINGS
 };
@@ -71,11 +89,10 @@ int expTimePosition = 0;              // Stores offset from start of exposure ti
 
 void loadSettings();
 void printPage(int currentSelection);
-void computeParameters();
 
 void setup() {
-  valuesMin[STEPSIZE] = 0.0f; valuesMin[NUMSTEPS] = 0.0; valuesMin[TOTALTRAVEL] = 0.0; valuesMin[EXPTIME] = 1.0;    valuesMin[SCANDIR] = 0.0; valuesMin[PIEZOTRAVEL] = 100.0;
-  valuesMax[STEPSIZE] = 10.0; valuesMax[NUMSTEPS] = 0.0; valuesMax[TOTALTRAVEL] = 0.0; valuesMax[EXPTIME] = 9999.0; valuesMax[SCANDIR] = 1.0; valuesMax[PIEZOTRAVEL] = 500.0;
+  valuesMin[STEPSIZE] = 0.1f;     valuesMin[NUMSTEPS] = 1.0;    valuesMin[TOTALTRAVEL] = 0.0;   valuesMin[EXPTIME] = 1.0;    valuesMin[SCANDIR] = 0.0; valuesMin[PIEZOTRAVEL] = 100.0;
+  valuesMax[STEPSIZE] = 1000.0f;  valuesMax[NUMSTEPS] = 1000.0; valuesMax[TOTALTRAVEL] = 100.0; valuesMax[EXPTIME] = 9999.0; valuesMax[SCANDIR] = 1.0; valuesMax[PIEZOTRAVEL] = 500.0;
   values[STEPSIZE] = valuesMin[STEPSIZE]; 
   values[NUMSTEPS] = valuesMin[NUMSTEPS]; 
   values[TOTALTRAVEL] = valuesMin[TOTALTRAVEL]; 
@@ -101,8 +118,6 @@ void setup() {
   lcd.noAutoscroll();                 // Left justify
   lcd.print(selector);                // Print out selector symbol
   delay(PRINTDELAY);
-  // TODO: Compute resolution, min, and max values for parameters
-  computeParameters();
   // TODO: Output values to peripherals
 }
 
@@ -235,15 +250,23 @@ void loop() {
     }
     else if(state == ADJSTEPSIZE) {
         val == r.clockwise() ? values[currentSelection] += 0.1 : values[currentSelection] -= 0.1;
-        values[currentSelection] = saturate(values[currentSelection], 0.0f, 10.0f); // TODO: Replace limits with calculated limits
+        if(values[STEPSIZE] * values[NUMSTEPS] > valuesMax[TOTALTRAVEL]) values[currentSelection] -= 0.1;
+        if(values[STEPSIZE] * values[NUMSTEPS] < valuesMin[TOTALTRAVEL]) values[currentSelection] += 0.1;
+//        values[currentSelection] = saturate(values[currentSelection], valuesMin[currentSelection], valuesMax[currentSelection]); // Replace limits with calculated limits
         printValue(currentSelection);
-        // TODO: Update value of total travel and print it out
+        // Update value of total travel and print it out
+        values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
+        printValue(TOTALTRAVEL);
     }
     else if(state == ADJNUMSTEPS) {
         val == r.clockwise() ? values[currentSelection] += 1 : values[currentSelection] -= 1;
-        values[currentSelection] = saturate((int)values[currentSelection], 0, 10); // TODO: Replace limits with calculated limits
+        if(values[STEPSIZE] * values[NUMSTEPS] > valuesMax[TOTALTRAVEL]) values[currentSelection] -= 1;
+        if(values[STEPSIZE] * values[NUMSTEPS] < valuesMin[TOTALTRAVEL]) values[currentSelection] += 1;
+//        values[currentSelection] = saturate((int)values[currentSelection], (int)valuesMin[currentSelection], (int)valuesMax[currentSelection]); // Replace limits with calculated limits
         printValue(currentSelection);
-        // TODO: Update value of total travel and print it out
+        // Update value of total travel and print it out
+        values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
+        printValue(TOTALTRAVEL);
     }
     else if(state == ADJTOTALTRAVEL) {
     }
@@ -254,7 +277,7 @@ void loop() {
         difference /= 10;
       }
       val == r.clockwise() ? values[currentSelection] += difference : values[currentSelection] -= difference;
-      values[currentSelection] = saturate(values[currentSelection], 1.0f, 9999.0f);
+      values[currentSelection] = saturate(values[currentSelection], valuesMin[currentSelection], valuesMax[currentSelection]);
       printValue(currentSelection);
     }
     else if(state == ADJSCANDIR) {
@@ -264,8 +287,9 @@ void loop() {
     }
     else if(state == ADJPIEZOTRAVEL) {
       val == r.clockwise() ? values[currentSelection] += 50 : values[currentSelection] -= 50;
-      values[currentSelection] = saturate((int)values[currentSelection], 100, 500);
+      values[currentSelection] = saturate((int)values[currentSelection], (int)valuesMin[currentSelection], (int)valuesMax[currentSelection]);
       printValue(currentSelection);
+      valuesMax[TOTALTRAVEL] = values[PIEZOTRAVEL];
     }
     else if(state == ADJSAVESETTINGS) {}
     else {}    
@@ -331,8 +355,10 @@ void printValue(int currentSelection) {
       break;
     case TOTALTRAVEL:
       // TODO: See how many digits are needed
-      lcd.setCursor(NUMCOLS - 1 - 5, printRow);
-      lcd.print(values[currentSelection]);
+      lcd.setCursor(NUMCOLS - 1 - 7, printRow);
+      if(values[currentSelection] < 100) lcd.print(" ");
+      if(values[currentSelection] < 10) lcd.print(" ");
+      lcd.print(values[TOTALTRAVEL]);
       delay(PRINTDELAY);
       lcd.print("um");
       delay(PRINTDELAY);
@@ -383,13 +409,6 @@ void printPage(int currentSelection) {
       printValue(i);
     }
   }
-  // updateValueOnScreen(currentSelection);
-}
-
-// Compute resolution, min, and max values for following parameters:
-// Total travel
-void computeParameters() {
-
 }
 
 // Save settings to EEPROM
@@ -431,4 +450,58 @@ int saturate(int val, int minimum, int maximum) {
     return maximum;
   }
   return val;
+}
+
+// Function that calculates percentage of DAC being used
+float calculateDACUtilization(float gain) {
+  return values[TOTALTRAVEL] / values[PIEZOTRAVEL] * 10.0 / 1.195 / STAGE2GAIN / gain;
+}
+
+// Function that returns index of resistor setting that gives largest DAC utilization that is less than 100%
+// Returns 1-indexed so results line up with G1-G4
+int calculateBestIndex() {
+  float utilizations[4] = {   calculateDACUtilization(G1),
+                              calculateDACUtilization(G2),
+                              calculateDACUtilization(G3),
+                              calculateDACUtilization(G4),
+  };
+  int bestIndex = 0;
+  // Find the first utilization that is less than 100%
+  while(utilizations[bestIndex] >= 1.0f && bestIndex < 4) {
+    bestIndex++;
+  }
+  if(bestIndex >= 4) return -1; // Should never return here, if so, all utilizations > 100%
+  float largestUtilization = utilizations[bestIndex];
+  for(int i = 0; i < 4; ++i) {
+    if(utilizations[i] > utilizations[bestIndex] && utilizations[i] < 1.0f) {
+      bestIndex = i;
+      largestUtilization = utilizations[bestIndex];
+    }
+  }
+  return bestIndex + 1;   // + 1 so 1 indexed
+}
+
+// Flips switch so we use the resistor combination with the largest utilization < 100%
+void chooseResistorCombination() {
+  int bestIndex = calculateBestIndex();
+  // G1 - R3//R4 / R1
+  if(bestIndex == 0) {
+    digitalWrite(SWD1, LOW);
+    digitalWrite(SWD2, HIGH);
+  }
+  // G2 - R3 / R1
+  else if(bestIndex == 1) {
+    digitalWrite(SWD1, LOW);
+    digitalWrite(SWD2, LOW);
+  }
+  // G3 - R3//R4 / R1//R2
+  else if(bestIndex == 2) {
+    digitalWrite(SWD1, HIGH);
+    digitalWrite(SWD2, HIGH);
+  }
+  // G4 - R3 / R1//R2
+  else if(bestIndex == 3) {
+    digitalWrite(SWD1, LOW);
+    digitalWrite(SWD2, HIGH);
+  }
 }
