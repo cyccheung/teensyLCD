@@ -9,7 +9,7 @@
 #define MENUITEMMAXLENGTH 16
 #define PRINTDELAY 50           // ms to wait after printing
 #define SETUPDEBUG 0            // Does not run loop if true
-#define EEPROMENABLE 0          // Disable at all times unless testing EEPROM or overall system
+#define EEPROMENABLE 1          // Disable at all times unless testing EEPROM or overall system
 // EEPROM addresses
 #define EEPROMSTEPSIZEADDR 0
 #define EEPROMNUMSTEPSADDR 4
@@ -17,10 +17,10 @@
 #define EEPROMSCANDIRADDR 12
 #define EEPROMPIEZOTRAVELADDR 16
 // Resistor values
-#define R1 22
-#define R2 4
-#define R3 29
-#define R4 19
+#define R1 22.
+#define R2 4.
+#define R3 29.
+#define R4 19.
 #define R1R2 R1*R2/(R1+R2)  // R1 // R2 parallel
 #define R3R4 R3*R4/(R3+R4)  // R3 // R4 parallel
 // Gain values
@@ -30,23 +30,16 @@
 #define G4 R3/R1R2
 #define STAGE2GAIN 1.0f
 // Pin definitions
+#define ENCODERA 5
+#define ENCODERB 3
+#define ENCODERBUTTON 4
 #define SWD1 9
 #define SWD2 10
 #define SWD3 11
 #define SWD4 12
 
 Adafruit_LiquidCrystal lcd(0);  // Change number if I2C address changes
-Rotary r = Rotary(5, 3, 4);     // Encoder pin A, Encoder pin B, button pin
-
-// Reorder this array and MENUITEMS enum below to change menu order
-char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
-                                          " NUM STEPS:",
-                                          " TOT TRAVEL:",
-                                          " EXP TIME:",
-                                          " SCAN DIR:",
-                                          " PIEZO TRAVEL:",
-                                          " SAVE SETTINGS"
-                                        };
+Rotary r = Rotary(ENCODERA, ENCODERB, ENCODERBUTTON);     // Encoder pin A, Encoder pin B, button pin
 
 char selector = '>';  // Symbol to use for selecting parameter in main menu
 
@@ -62,6 +55,16 @@ enum STATES {
   // Scrolling in menu
   SCROLLING
 };
+
+// Reorder this array and MENUITEMS enum below to change menu order
+char menuLabels[][MENUITEMMAXLENGTH] = {  " STEP SIZE:",
+                                          " NUM STEPS:",
+                                          " TOT TRAVEL:",
+                                          " EXP TIME:",
+                                          " SCAN DIR:",
+                                          " PIEZO TRAVEL:",
+                                          " SAVE SETTINGS"
+                                        };
 
 // Reorder this enum and menuLabels above to change menu order
 enum MENUITEMS {
@@ -109,7 +112,7 @@ void setup() {
 
   // Load up saved values for each parameter
   if(EEPROMENABLE) {
-    loadSettings();
+     loadSettings();
   }
   // Print out values for each parameter
   printPage(currentSelection);
@@ -138,6 +141,9 @@ void loop() {
         if(currentSelection == SAVESETTINGS) {
           if(EEPROMENABLE) {
             saveSettings();
+            lcd.setCursor(NUMCOLS - 1 - 4, currentSelection);
+            lcd.print("SAVED");
+            delay(PRINTDELAY);
           }
         }
         // If selector pointing at parameters
@@ -165,9 +171,8 @@ void loop() {
             default:
               break;
           }
-          // state = currentSelection;
+          lcd.blink();
         }
-        lcd.blink();
         break;
       case ADJSTEPSIZE:
         // User is done adjusting step size, just go back to scrolling
@@ -221,48 +226,54 @@ void loop() {
   // If encoder has been turned
   if(val) {
     if(state == SCROLLING) {
-        lcd.setCursor(0, currentSelection % 4); // Move cursor to selector
-        lcd.noAutoscroll();                     // Left justify
-        lcd.print(" ");                         // Erase selector symbol
+      lcd.setCursor(0, currentSelection % 4); // Move cursor to selector
+      lcd.noAutoscroll();                     // Left justify
+      lcd.print(" ");                         // Erase selector symbol
+      delay(PRINTDELAY);
+      
+      // If going away from save settings, clear out last 5 cells
+      if(currentSelection == SAVESETTINGS) {
+        lcd.setCursor(NUMCOLS - 1 - 4, currentSelection);
+        lcd.print("     ");
         delay(PRINTDELAY);
+      }
+      // If going from page 1 to page 2
+      if(val == r.clockwise() && currentSelection == NUMROWS - 1) {
+        currentSelection++;
+        printPage(currentSelection);
+      }
+      // If going from page 2 to page 1
+      else if(val == r.counterClockwise() && currentSelection == NUMROWS) {
+        currentSelection--;
+        printPage(currentSelection);
+      }
+      // If within one page
+      else {
+        val == r.clockwise() ? currentSelection++ : currentSelection--;
+      }
+      // Saturate currentSelection
+      currentSelection = saturate(currentSelection, 0, NUMMENUITEMS - 1);
 
-        // If going from page 1 to page 2
-        if(val == r.clockwise() && currentSelection == NUMROWS - 1) {
-          currentSelection++;
-          printPage(currentSelection);
-        }
-        // If going from page 2 to page 1
-        else if(val == r.counterClockwise() && currentSelection == NUMROWS) {
-          currentSelection--;
-          printPage(currentSelection);
-        }
-        // If within one page
-        else {
-          val == r.clockwise() ? currentSelection++ : currentSelection--;
-        }
-        // Saturate currentSelection
-        currentSelection = saturate(currentSelection, 0, NUMMENUITEMS - 1);
-
-        lcd.setCursor(0, currentSelection % 4); // Move cursor to 0th column and chosen row
-        lcd.noAutoscroll();                     // Left justify
-        lcd.print(selector);                    // Print out selector symbol
-        delay(PRINTDELAY);
+      lcd.setCursor(0, currentSelection % 4); // Move cursor to 0th column and chosen row
+      lcd.noAutoscroll();                     // Left justify
+      lcd.print(selector);                    // Print out selector symbol
+      delay(PRINTDELAY);
     }
     else if(state == ADJSTEPSIZE) {
-        val == r.clockwise() ? values[currentSelection] += 0.1 : values[currentSelection] -= 0.1;
-        if(values[STEPSIZE] * values[NUMSTEPS] > valuesMax[TOTALTRAVEL]) values[currentSelection] -= 0.1;
-        if(values[STEPSIZE] * values[NUMSTEPS] < valuesMin[TOTALTRAVEL]) values[currentSelection] += 0.1;
-//        values[currentSelection] = saturate(values[currentSelection], valuesMin[currentSelection], valuesMax[currentSelection]); // Replace limits with calculated limits
-        printValue(currentSelection);
-        // Update value of total travel and print it out
-        values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
-        printValue(TOTALTRAVEL);
+      float tempStep = 0.1;
+      values[STEPSIZE] < 5.0f ? tempStep = 0.05 : tempStep = 0.1;    // So for step sizes up to a threshold, the step is smaller
+      val == r.clockwise() ? values[currentSelection] += tempStep : values[currentSelection] -= tempStep;
+      if(values[STEPSIZE] * values[NUMSTEPS] > valuesMax[TOTALTRAVEL]) values[currentSelection] -= tempStep;
+      if(values[STEPSIZE] * values[NUMSTEPS] < valuesMin[TOTALTRAVEL]) values[currentSelection] += tempStep;
+      printValue(currentSelection);
+      // Update value of total travel and print it out
+      values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
+      printValue(TOTALTRAVEL);
     }
     else if(state == ADJNUMSTEPS) {
         val == r.clockwise() ? values[currentSelection] += 1 : values[currentSelection] -= 1;
         if(values[STEPSIZE] * values[NUMSTEPS] > valuesMax[TOTALTRAVEL]) values[currentSelection] -= 1;
         if(values[STEPSIZE] * values[NUMSTEPS] < valuesMin[TOTALTRAVEL]) values[currentSelection] += 1;
-//        values[currentSelection] = saturate((int)values[currentSelection], (int)valuesMin[currentSelection], (int)valuesMax[currentSelection]); // Replace limits with calculated limits
         printValue(currentSelection);
         // Update value of total travel and print it out
         values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
@@ -430,6 +441,7 @@ void loadSettings() {
   EEPROM.get(EEPROMEXPTIMEADDR, values[EXPTIME]);
   EEPROM.get(EEPROMSCANDIRADDR, values[SCANDIR]);
   EEPROM.get(EEPROMPIEZOTRAVELADDR, values[PIEZOTRAVEL]);
+  values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
 }
 
 // Function that saturates val between min and max
