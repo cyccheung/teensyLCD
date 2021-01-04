@@ -9,20 +9,20 @@
 #define MENUITEMMAXLENGTH 16
 #define PRINTDELAY 50           // ms to wait after printing
 #define SETUPDEBUG 0            // Does not run loop if true
-#define EEPROMENABLE 1          // Disable at all times unless testing EEPROM or overall system
+#define EEPROMENABLE 0          // Disable at all times unless testing EEPROM or overall system
 // EEPROM addresses
 #define EEPROMSTEPSIZEADDR 0
 #define EEPROMNUMSTEPSADDR 4
 #define EEPROMEXPTIMEADDR 8
 #define EEPROMSCANDIRADDR 12
 #define EEPROMPIEZOTRAVELADDR 16
-// Resistor values
+// Resistor values, make sure they are floats
 #define R1 22.
 #define R2 4.
 #define R3 29.
 #define R4 19.
-#define R1R2 R1*R2/(R1+R2)  // R1 // R2 parallel
-#define R3R4 R3*R4/(R3+R4)  // R3 // R4 parallel
+#define R1R2 ((R1*R2)/(R1+R2))  // R1 // R2 parallel
+#define R3R4 ((R3*R4)/(R3+R4))  // R3 // R4 parallel
 // Gain values
 #define G1 R3R4/R1
 #define G2 R3/R1
