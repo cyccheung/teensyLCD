@@ -1,3 +1,12 @@
+/*
+  Usage Notes:
+  - Make sure to change EEPROMENABLE #define to 1 if testing with EEPROM
+  - Resistor values can be changed by changing the R1,2,3,4 #defines
+  - Pin definitions can be changed by changing their respective #defines 
+  - To reorder the menu, menuLabels array and MENUITEMS enum
+  - valuesMin and valuesMax store the min and max each parameter is allowed to go to
+*/
+
 #include <rotary.h>
 #include "Wire.h"
 #include <EEPROM.h>
@@ -8,7 +17,7 @@
 #define NUMMENUITEMS 7          // Number of parameters and options
 #define MENUITEMMAXLENGTH 16
 #define PRINTDELAY 50           // ms to wait after printing
-#define SETUPDEBUG 0            // Does not run loop if true
+#define SETUPDEBUG 0            // Does not run loop if true, used to test functions in setup
 #define EEPROMENABLE 0          // Disable at all times unless testing EEPROM or overall system
 // EEPROM addresses
 #define EEPROMSTEPSIZEADDR 0
@@ -121,7 +130,8 @@ void setup() {
   lcd.noAutoscroll();                 // Left justify
   lcd.print(selector);                // Print out selector symbol
   delay(PRINTDELAY);
-  // TODO: Output values to peripherals
+  // Output values to peripherals
+  chooseResistorCombination();
 }
 
 void loop() {
@@ -269,6 +279,8 @@ void loop() {
       // Update value of total travel and print it out
       values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
       printValue(TOTALTRAVEL);
+      // Change output accordingly
+      chooseResistorCombination();
     }
     else if(state == ADJNUMSTEPS) {
         val == r.clockwise() ? values[currentSelection] += 1 : values[currentSelection] -= 1;
@@ -278,6 +290,8 @@ void loop() {
         // Update value of total travel and print it out
         values[TOTALTRAVEL] = values[STEPSIZE] * values[NUMSTEPS];
         printValue(TOTALTRAVEL);
+        // Change output accordingly
+        chooseResistorCombination();
     }
     else if(state == ADJTOTALTRAVEL) {
     }
@@ -301,6 +315,8 @@ void loop() {
       values[currentSelection] = saturate((int)values[currentSelection], (int)valuesMin[currentSelection], (int)valuesMax[currentSelection]);
       printValue(currentSelection);
       valuesMax[TOTALTRAVEL] = values[PIEZOTRAVEL];
+      // Change output accordingly
+      chooseResistorCombination();
     }
     else if(state == ADJSAVESETTINGS) {}
     else {}    
@@ -355,8 +371,12 @@ void printValue(int currentSelection) {
       delay(PRINTDELAY);
       break;
     case NUMSTEPS:
-      // TODO: See how many digits are needed
+      // See how many digits are needed
       lcd.setCursor(NUMCOLS - 1 - 3, printRow);
+      if(values[currentSelection] < 100) {
+        lcd.print(" ");
+        delay(PRINTDELAY);
+      }
       if(values[currentSelection] < 10) {
         lcd.print(" ");
         delay(PRINTDELAY);
@@ -365,10 +385,16 @@ void printValue(int currentSelection) {
       delay(PRINTDELAY);
       break;
     case TOTALTRAVEL:
-      // TODO: See how many digits are needed
+      // See how many digits are needed
       lcd.setCursor(NUMCOLS - 1 - 7, printRow);
-      if(values[currentSelection] < 100) lcd.print(" ");
-      if(values[currentSelection] < 10) lcd.print(" ");
+      if(values[currentSelection] < 100) {
+        lcd.print(" ");
+        delay(PRINTDELAY);
+      }
+      if(values[currentSelection] < 10) {
+        lcd.print(" ");
+        delay(PRINTDELAY);
+      }
       lcd.print(values[TOTALTRAVEL]);
       delay(PRINTDELAY);
       lcd.print("um");
